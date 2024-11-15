@@ -18,14 +18,19 @@ def timerStart():
         btnS["text"] = "Пауза" 
 
         now = datetime.now()
-        tree.insert("", END, values=("Старт", now.strftime("%H:%M:%S"),timerStr))  # запись данных в таблицу истории
+        timeNow = now.strftime("%H:%M:%S")
+        statusLabel["text"] = "Старт в " + timeNow
+        tree.insert("", END, values=("Старт", timeNow, timerStr))  # запись данных в таблицу истории
 
         root.after(1000, timerPlus)  # вызов функции счета времени
-    else:
-        timerStatus = False
+        btnStop["state"] = "normal"
+    else: # иначе, если таймер включен
+        timerStatus = False # таймер выключается
         btnS["text"] = "Старт"
         now = datetime.now()
-        tree.insert("", END, values=("Пауза", now.strftime("%H:%M:%S"),timerStr))
+        timeNow = now.strftime("%H:%M:%S")
+        statusLabel["text"] = "Пауза в " + timeNow
+        tree.insert("", END, values=("Пауза", timeNow, timerStr))
 
 # функция остановки таймера
 # при вызове функции сбрасываются все переменные таймера и 
@@ -33,19 +38,25 @@ def timerStop():
     global timerStatus, hour, min, sec
     timerStr = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
     
-    label["text"] = timerStr
+    timeLabel["text"] = timerStr
 
+    # заполняем все признаки остановки
     timerStatus = False
     btnS["text"] = "Старт"
+    btnStop["state"] = "disable"
 
+    # записываем данные в историю
     now = datetime.now()
-    tree.insert("", END, values=("Стоп", now.strftime("%H:%M:%S"),timerStr))
+    timeNow = now.strftime("%H:%M:%S")
+    statusLabel["text"] = "Стоп в " + timeNow
+    tree.insert("", END, values=("Стоп", timeNow, timerStr))
     tree.insert("", END, values=("-","-","-"))
 
+    # обнуляем временные переменные
     sec = 0
     min = 0
     hour = 0
-    label["text"] = "--:--:--"
+    timeLabel["text"] = "--:--:--"    
 
 
 # функция счета времени таймера. Вызывается каждую секунду
@@ -62,21 +73,29 @@ def timerPlus():
         if hour == 24:
             hour = 0
             
-        label["text"] = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
+        timeLabel["text"] = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
         root.after(1000, timerPlus)  # рекурсивный вызов этой функции для выполнения счета секунд
+
+#
+def selected(event):
+    print(combobox.get())
+
+# очистка таблицы истории
+def clearHistory():
+    tree.delete(*tree.get_children())
 
 
 # ************************************************************************** #
 root = Tk()
 root.geometry("300x400")
-root.minsize(300,400)   # минимальные размеры: ширина - 300, высота - 450
+root.minsize(300,400)   # минимальные размеры: ширина - 300, высота - 400
 root.maxsize(300,400)   # максимальные размеры: ширина - 300, высота - 400
  
 root.title("Timer")
 
 # создаем набор вкладок
 notebook = ttk.Notebook()
-notebook.pack(expand=True, fill=BOTH)
+notebook.pack()
 
 # создаем пару фреймвов
 frame1 = ttk.Frame(notebook)
@@ -86,30 +105,43 @@ frame2.pack(fill=BOTH, expand=True)
 
 # добавляем фреймы в качестве вкладок
 notebook.add(frame1, text="Счетчик")
-notebook.add(frame2, text="Таймер",state="disabled")
+# notebook.add(frame2, text="Таймер",state="disabled")
+notebook.add(frame2, text="История")
 
 # настройка сетки
 for c in range(2): frame1.columnconfigure(index=c, weight=1) # grid - 2 столбца
-for r in range(4): frame1.rowconfigure(index=r, weight=1) # grid - 4 строки
+for r in range(5): frame1.rowconfigure(index=r, weight=1) # grid - 4 строки
 
 # добавление label для отображения времени
-label = ttk.Label(frame1, text="--:--:--", font=("Arial", 18),padding="5", )
-label.grid(row=0,column=0,columnspan=2)
+timeLabel = ttk.Label(frame1, text="--:--:--", font=("Arial", 20), padding="5")
+timeLabel.grid(row=0,column=0,columnspan=2)
 
-# добавление кнопок
+# добавление label для определения времени последнего события
+statusLabel = ttk.Label(frame1, text="-")
+statusLabel.grid(row=1,column=0,columnspan=2)
+
+# добавление кнопок для управления таймером
 btnS = ttk.Button(frame1, text="Старт", command=timerStart) # создаем кнопку из пакета ttk
-btnS.grid(row=1,column=0)    # размещаем кнопку в окне
-btnClear = ttk.Button(frame1, text="Сброс", command=timerStop) # создаем кнопку из пакета ttk
-btnClear.grid(row=1,column=1)    # размещаем кнопку в окне
+btnS.grid(row=2,column=0)    # размещаем кнопку в окне
+btnStop = ttk.Button(frame1, text="Стоп", command=timerStop, state="disable") # создаем кнопку из пакета ttk
+btnStop.grid(row=2,column=1)    # размещаем кнопку в окне
 
-# определяем данные для отображения
-people = [("Start", "10:22"), ("Pause", "10:25"), ("Stop", "10:32")]
- 
-# определяем столбцы
+# добавление чекбокса с выбором режимов
+languages = ["Счетчик", "Счет минут", "Счет секунд", "Счет до времени", "Последовательности"]
+combobox = ttk.Combobox(frame1, values=languages, state="readonly")
+combobox.grid(row=3,column=0,columnspan=2)
+combobox.bind("<<ComboboxSelected>>", selected)
+combobox.current(0)
+
+
+# ************************************************************************** #
+# Вкладка "История"
+# Настройка таблицы истории
+# Определяем столбцы
 columns = ("task", "time", "timer")
  
-tree = ttk.Treeview(frame1,columns=columns, show="headings")
-tree.grid(row=2, column=0, rowspan=2, columnspan=2)
+tree = ttk.Treeview(frame2,columns=columns, show="headings")
+tree.pack()
  
 # определяем заголовки
 tree.heading("task", text="Действие")
@@ -120,5 +152,8 @@ tree.heading("timer", text="Таймер")
 tree.column("#1", stretch=NO, width=90)
 tree.column("#2", stretch=NO, width=90)
 tree.column("#3", stretch=NO, width=90)
+
+btnClearHistory = ttk.Button(frame2, text="Очистить историю", command=clearHistory, padding=0)
+btnClearHistory.pack()
 
 root.mainloop()
