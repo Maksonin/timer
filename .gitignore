@@ -2,3 +2,4 @@ build
 _internal
 __pycache__
 *.spec
+*.txt
