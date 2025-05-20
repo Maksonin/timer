@@ -1,8 +1,7 @@
 from datetime import datetime,timedelta
 from tkinter import *
 from tkinter import ttk
-from tkinter.messagebox import showerror, showwarning, showinfo
-import os
+from tkinter.messagebox import showerror, showwarning, showinfo, askyesno
 import glob
 import enum
 
@@ -19,8 +18,14 @@ class timerCondition(enum.Enum):
     start = 1
     pause = 2
 
+class mode(enum.Enum):
+    seconds = 0
+    timer = 1
+    toTime = 2
+    order = 3
+
 timerStatus = timerCondition.stop # переменная для хранения статуса работы таймера. От этой переменной зависит работа счетчика времени
-timerMode = "seconds" # переменная для хранения режима работы таймера
+timerMode = mode.seconds # переменная для хранения режима работы таймера
 
 # функция запуска таймера
 # при вызове функции - если таймер выключен, то происходит включение, и наоборот
@@ -30,7 +35,7 @@ def timerStart():
     timeLabel["text"] = timerStr
 
     clearHistory()
-    historyFileGet()
+    getHistoryFile()
 
     now = datetime.now()
     timeNow = now.strftime("%H:%M:%S")
@@ -40,11 +45,11 @@ def timerStart():
         # если таймер остановлен (timerStatus = 0 (timerCondition.stop)), то записываем дату запуска таймера
         if timerStatus != timerCondition.pause:
             print(now.date())
-            historyFileSave(str(now.date()) + "\n")
+            saveHistoryFile(str(now.date()) + "\n")
 
         # если режим не счетчик времени
         # то расцениваем пустые ячейки ввода времени как 0
-        if timerMode != "seconds":
+        if timerMode != mode.seconds:
             # если таймер не на паузе
             if hourEnty.get() == "":
                 hour = 0
@@ -58,7 +63,7 @@ def timerStart():
         
         # если режим работы - таймер
         # расчет времени окончания счета таймера
-        if timerMode == "timer":
+        if timerMode == mode.timer:
             endTime = now + timedelta(hours=int(hour), minutes=int(min), seconds=int(sec))
             infoLabel["text"] = "Таймер закончит - " + endTime.strftime("%H:%M:%S")
         
@@ -80,7 +85,7 @@ def timerStart():
         statusLabel["text"] = statusText # вывод статусной строки в соответствующий label
         
         # сохранение в файл такущего состояния
-        historyFileSave(modeSelect.get() + " " + statusText + " - " + timerStr + "\n")
+        saveHistoryFile(modeSelect.get() + " " + statusText + " - " + timerStr + "\n")
         # запись данных в таблицу истории
         tree.insert("", 0, values=(modeSelect.get() + ". Старт", timeNow, timerStr))  
 
@@ -93,7 +98,7 @@ def timerStart():
         statusText = "Пауза - " + timeNow
         statusLabel["text"] = statusText
 
-        historyFileSave(statusText + " - " + timerStr + "\n")
+        saveHistoryFile(statusText + " - " + timerStr + "\n")
         tree.insert("", 0, values=("Пауза", timeNow, timerStr))
 
 
@@ -110,7 +115,7 @@ def timerStop():
     statusText = "Стоп - " + timeNow
     statusLabel["text"] = statusText
 
-    historyFileSave(statusText + " - " + timerStr + "\n" + "---" + "\n")
+    saveHistoryFile(statusText + " - " + timerStr + "\n" + "---" + "\n")
     tree.insert("", 0, values=("Стоп", timeNow, timerStr))
     tree.insert("", 0, values=("-","-","-"))
 
@@ -126,9 +131,9 @@ def timerStop():
     timerSelect["state"] = "enable"
     infoLabel["text"] = "Счетчик"
     
-    timerSelect["value"] = getHistoryFile()
+    timerSelect["value"] = getListHistoryFile()
 
-    if timerMode != "seconds":
+    if timerMode != mode.seconds:
         for child in settingFrame.winfo_children():
             child.configure(state='enable')
     modeSelect.configure(state = "enable")
@@ -138,7 +143,7 @@ def timerPlus():
     global timerStatus, timerCondition,  timerMode, hour, min, sec
     if timerStatus == timerCondition.start:
         # если выбран режим таймер
-        if timerMode == "timer":
+        if timerMode == mode.timer:
             #print(str(hour) + " " + str(min)  + " " + str(sec))
             # если таймер досчитал до конца
             if (hour == 0) and  (min == 0) and (sec == 0) :
@@ -173,38 +178,36 @@ def timerPlus():
 
 # функция обработчик выбора режима таймера
 def modeSelectDef(event):
-    global timerMode
-    mode = modeSelect.get() 
-    print(mode)
-    if mode == "Счетчик":
-        timerMode = "seconds"
+    global timerMode, mode
+    modeSel = modeSelect.get() 
+    print(modeSel)
+    if modeSel == "Счетчик":
+        timerMode = mode.seconds
         infoLabel["text"] = "Счетчик"
         for child in settingFrame.winfo_children():
             child.configure(state='disable')
-    elif mode == "Таймер":
-        timerMode = "timer"
+    elif modeSel == "Таймер":
+        timerMode = mode.timer
         infoLabel["text"] = "Отсчет введенного времени"
         for child in settingFrame.winfo_children():
             child.configure(state='enable')
     else:
-        timerMode = "seconds"
+        timerMode = mode.seconds
         infoLabel["text"] = "Функционал в разработке"
         for child in settingFrame.winfo_children():
             child.configure(state='disable')
-    
-    #print(timerMode)
 
 # Функция срабатывающая при изменении комбобокса timerSelect
 def timerSelectDef(event):
     # global timerNum
     print("timerSelect!")
-    timerSelect["value"] = getHistoryFile()
+    timerSelect["value"] = getListHistoryFile()
     timerNum.set(timerSelect.get())
     clearHistory()
-    historyFileGet()
+    getHistoryFile()
 
 # Функция считывает файл в соответствии с комбоксом timerSelect и записывает содержимое в таблицу с историей
-def historyFileGet():
+def getHistoryFile():
     try:
         f = open('h_' + timerSelect.get() + '.txt','r')
         history = f.readlines()
@@ -217,19 +220,56 @@ def historyFileGet():
                 tree.insert("", 0, values=(h[0], h[1], h[2]))
         f.close()
     except Exception as e:
-        print("Ошибка считывания файла " + str(e))
+        print("Ошибка считывания файла истории " + str(e))
 
 # Функция сохранении истории в файл выбранный в timerSelect
-def historyFileSave(str):
+def saveHistoryFile(str):
     try:
         f = open('h_' + timerSelect.get()+'.txt','a+')
         f.write(str)
         f.close()
     except Exception as e:
-        print("Ошибка сохранения в файл " + str(e))
+        print("Ошибка сохранения в файл истории " + str(e))
+
+# Функция получения состояния таймера на момент последнего закрытия закрытии
+def getConfFile():
+    global timerStatus, timerMode
+    try:
+        f = open('sost.cfg','r')
+        sost = f.readlines()
+        f.close()
+        for key in sost:
+            key = key.split(":")
+            key[1] = key[1].replace("\n","")
+            print(key[0], key[1])
+            match key[0]:
+                case "history":
+                    timerSelect.current(key[1])
+                    timerSelectDef(None)
+
+                    # уточнить - нужен ли данный функционал?
+                # case "status":
+                #     timerStatus = key[1]
+                # case "timermode": 
+                    # timerMode = key[1]
+                    # modeSelect.current(key[1])
+                    # modeSelectDef(None)
+                    
+                    # уточнить - нужен ли данный функционал?
+    except Exception as e:
+        print("Ошибка чтения файла конфигураций " + str(e))
+
+# Функция сохранении текущего состояния таймера при закрытии
+def saveConfFile(sost):
+    try:
+        f = open('sost.cfg','w')
+        f.write(sost)
+        f.close()
+    except Exception as e:
+        print("Ошибка сохранения в файл конфигураций " + str(e))
 
 # получает список файлов хранящих историю
-def getHistoryFile():
+def getListHistoryFile():
     print("getHistoryFile")
     # Получаем список файлов
     files = glob.glob('h_*.txt')
@@ -252,8 +292,16 @@ def clearFileHistory():
 
 # функция вызываемая при событии закрытия приложения
 def closeTimer():
-    root.destroy()  # ручное закрытие окна и всего приложения
-    print("Close!")
+    global timerMode
+    result = 1
+    # проверка на потребность в закрытии таймера если он запущен
+    if timerStatus == timerCondition.start or timerStatus == timerCondition.pause:
+        result = askyesno(title="Ой!", message="Таймер запущен! Сломать время?")
+    if result:
+        status = "history:" + str(timerSelect.current()) + "\n" + "h:" + str(hour) + "\n" + "m:" + str(min) + "\n" + "s:" + str(sec) + "\n" + "status:" + str(timerStatus) + "\n" + "timermode:" + str(timerMode.value)
+        saveConfFile(status)
+        root.destroy()  # ручное закрытие окна и всего приложения
+        print("Close!")
 
 
 # ************************************************************************** #
@@ -265,13 +313,13 @@ root.maxsize(300,400)   # максимальные размеры: ширина 
 root.title("Timer")
 
 # виджет с выбором истории
-timers = getHistoryFile()
+timers = getListHistoryFile()
 timerSelect = ttk.Combobox(values=timers, justify=CENTER)
 timerSelect.pack(fill=X , padx=5, pady=2)
 timerSelect.bind("<<ComboboxSelected>>", timerSelectDef)
 if len(timers) > 0: # если файлы истории есть
     timerSelect.current(0) # то выбирается первый из массива файлов
-  
+
 # создаем набор вкладок
 notebook = ttk.Notebook()
 notebook.pack()
@@ -369,6 +417,8 @@ btnClearFileHistory.pack()
 # historyInfo.pack(expand=True)
 
 timerSelectDef(None)
+
+getConfFile()
 
 root.protocol("WM_DELETE_WINDOW", closeTimer)
 

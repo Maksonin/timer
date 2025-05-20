@@ -3,3 +3,4 @@ _internal
 __pycache__
 *.spec
 *.txt
+sost.cfg
