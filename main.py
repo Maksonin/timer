@@ -25,9 +25,10 @@ class mode(enum.Enum):
     order = 3
 
 timerStatus = timerCondition.stop # переменная для хранения статуса работы таймера. От этой переменной зависит работа счетчика времени
-timerMode = mode.seconds # переменная для хранения режима работы таймера
+timerMode = mode.timer # переменная для хранения режима работы таймера по умолчанию при запуске и в дальнейшей работе
 
 # функция запуска таймера
+# вызывается при нажатии на кнопку старт/пауза/продолжить
 # при вызове функции - если таймер выключен, то происходит включение, и наоборот
 def timerStart():
     global timerStatus, timerCondition, timerMode, hour, min, sec
@@ -42,24 +43,31 @@ def timerStart():
     
     # если таймер не запущен 
     if timerStatus != timerCondition.start: 
-        # если таймер остановлен (timerStatus = 0 (timerCondition.stop)), то записываем дату запуска таймера
+        # если таймер остановлен (не пауза) (timerStatus = 0 (timerCondition.stop)), 
+        # то записываем дату запуска таймера
         if timerStatus != timerCondition.pause:
-            print(now.date())
             saveHistoryFile(str(now.date()) + "\n")
 
         # если режим не счетчик времени
         # то расцениваем пустые ячейки ввода времени как 0
-        if timerMode != mode.seconds:
-            # если таймер не на паузе
+        if timerMode != mode.seconds and timerStatus == timerCondition.stop:
             if hourEnty.get() == "":
                 hour = 0
-            else: hour = int(hourEnty.get())
+                hourEnty.set(0)
+            else: 
+                hour = int(hourEnty.get())
+
             if minuteEnty.get() == "":
                 min = 0
-            else: min = int(minuteEnty.get())
+                minuteEnty.set(0)
+            else: 
+                min = int(minuteEnty.get())
+
             if secondsEnty.get() == "":
                 sec = 0
-            else: sec = int(secondsEnty.get())
+                secondsEnty.set(0)
+            else: 
+                sec = int(secondsEnty.get())
         
         # если режим работы - таймер
         # расчет времени окончания счета таймера
@@ -103,7 +111,7 @@ def timerStart():
 
 
 # функция остановки таймера
-# при вызове функции сбрасываются все переменные таймера и 
+# при вызове функции сбрасываются все переменные таймера и кнопки
 def timerStop():
     global timerStatus, timerCondition, hour, min, sec
     timerStr = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
@@ -174,7 +182,6 @@ def timerPlus():
             
         timeLabel["text"] = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
         root.after(1000, timerPlus)  # рекурсивный вызов этой функции для выполнения счета секунд
-
 
 # функция обработчик выбора режима таймера
 def modeSelectDef(event):
@@ -358,7 +365,7 @@ languages = ["Счетчик", "Таймер", "Счет до времени", "
 modeSelect = ttk.Combobox(frame1, values=languages, state="readonly")
 modeSelect.grid(row=4,column=0,columnspan=2)
 modeSelect.bind("<<ComboboxSelected>>", modeSelectDef)
-modeSelect.current(0)
+modeSelect.current(timerMode.value)
 
 infoLabel = ttk.Label(frame1, text="-")
 infoLabel.grid(row=5,column=0,columnspan=2,ipady=6)
@@ -417,6 +424,8 @@ btnClearFileHistory.pack()
 # historyInfo.pack(expand=True)
 
 timerSelectDef(None)
+
+modeSelectDef(None)
 
 getConfFile()
 
