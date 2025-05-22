@@ -4,6 +4,7 @@ from tkinter import ttk
 from tkinter.messagebox import showerror, showwarning, showinfo, askyesno
 import glob
 import enum
+from threading import Timer
 
 hour = 0
 min = 0
@@ -97,7 +98,8 @@ def timerStart():
         # запись данных в таблицу истории
         tree.insert("", 0, values=(modeSelect.get() + ". Старт", timeNow, timerStr))  
 
-        root.after(1000, timerPlus)  # вызов функции счета времени
+        # root.after(1000, timerPlus)  # вызов функции счета времени
+        # timerPlus()
         
     else: # иначе, если таймер включен
         timerStatus = timerCondition.pause # таймер устанавливает статус - пауза
@@ -146,28 +148,28 @@ def timerStop():
             child.configure(state='enable')
     modeSelect.configure(state = "enable")
 
-# функция счета времени таймера. Вызывается каждую секунду
+# Функция счета времени. 
+# Вызывается каждую секунду.
 def timerPlus():
-    global timerStatus, timerCondition,  timerMode, hour, min, sec
+    global timerStatus, timerCondition,  timerMode, hour, min, sec, t
     if timerStatus == timerCondition.start:
         # если выбран режим таймер
         if timerMode == mode.timer:
-            #print(str(hour) + " " + str(min)  + " " + str(sec))
             # если таймер досчитал до конца
             if (hour == 0) and  (min == 0) and (sec == 0) :
                 showinfo(title="Информация", message="Таймер посчитал ^_^")
                 timerStop()
-                return
-            
-            sec = sec - 1
-            if sec == -1:
-                sec = 59
-                min = min - 1
-            if min == -1:
-                min = 59
-                hour = hour - 1
-            if hour == -1:
-                hour = 23
+            # иначе счет продолжается
+            else:
+                sec = sec - 1
+                if sec == -1:
+                    sec = 59
+                    min = min - 1
+                if min == -1:
+                    min = 59
+                    hour = hour - 1
+                if hour == -1:
+                    hour = 23
         # в остальных режимах
         else:
             sec = sec + 1
@@ -179,9 +181,22 @@ def timerPlus():
                 hour = hour + 1
             if hour == 24:
                 hour = 0
-            
+        
+        # вывод счета на timeLabel
         timeLabel["text"] = str(f'{hour:02}') + ':' + str(f'{min:02}') + ':' + str(f'{sec:02}')
-        root.after(1000, timerPlus)  # рекурсивный вызов этой функции для выполнения счета секунд
+    # если режим Пауза и режим Таймер, то обновляем время окончания таймера в большую сторону
+    elif timerStatus == timerCondition.pause and timerMode == mode.timer:
+        now = datetime.now()
+        endTime = now + timedelta(hours=int(hour), minutes=int(min), seconds=int(sec))
+        infoLabel["text"] = "Таймер закончит - " + endTime.strftime("%H:%M:%S")
+    
+    # цикличный вызов функции
+    t = Timer(1, timerPlus)
+    t.start()
+    
+# запуск цикличного счета каждую секунду
+t = Timer(1, timerPlus)
+t.start()
 
 # функция обработчик выбора режима таймера
 def modeSelectDef(event):
@@ -299,7 +314,7 @@ def clearFileHistory():
 
 # функция вызываемая при событии закрытия приложения
 def closeTimer():
-    global timerMode
+    global timerMode, t
     result = 1
     # проверка на потребность в закрытии таймера если он запущен
     if timerStatus == timerCondition.start or timerStatus == timerCondition.pause:
@@ -307,11 +322,14 @@ def closeTimer():
     if result:
         status = "history:" + str(timerSelect.current()) + "\n" + "h:" + str(hour) + "\n" + "m:" + str(min) + "\n" + "s:" + str(sec) + "\n" + "status:" + str(timerStatus) + "\n" + "timermode:" + str(timerMode.value)
         saveConfFile(status)
+        t.cancel()
         root.destroy()  # ручное закрытие окна и всего приложения
         print("Close!")
 
 
 # ************************************************************************** #
+# Вкладка "Счетчик"
+
 root = Tk()
 root.geometry("250x300")
 root.minsize(250,350)   # минимальные размеры: ширина - 300, высота - 400
@@ -367,25 +385,27 @@ modeSelect.grid(row=4,column=0,columnspan=2)
 modeSelect.bind("<<ComboboxSelected>>", modeSelectDef)
 modeSelect.current(timerMode.value)
 
+# лэйбл для информационных вставок
 infoLabel = ttk.Label(frame1, text="-")
 infoLabel.grid(row=5,column=0,columnspan=2,ipady=6)
 
-# 
+# блок с настройками параметров времени
 settingFrame = ttk.Frame(frame1)
 settingFrame.grid(row=6, column=0, columnspan=2)
 for c in range(8): settingFrame.columnconfigure(index=c, weight=1) # grid - 8 столбца
 for r in range(3): settingFrame.rowconfigure(index=r, weight=1) # grid - 3 строки
 
+# блок указания часов
 infoLabelH = ttk.Label(settingFrame, text="Часы", state="disable")
 infoLabelH.grid(row=1,column=0,columnspan=2)
 hourEnty = ttk.Spinbox(settingFrame, width=6, from_=0, to=24,state="disable")
 hourEnty.grid(row=2,column=0,columnspan=2)
-
+# блок указания минут
 infoLabelM = ttk.Label(settingFrame, text="Минуты", state="disable")
 infoLabelM.grid(row=1,column=3,columnspan=2)
 minuteEnty = ttk.Spinbox(settingFrame, width=6, from_=0, to=60, state="disable")
 minuteEnty.grid(row=2,column=3,columnspan=2)
-
+# блок указания секунд
 infoLabelS = ttk.Label(settingFrame, text="Секунды", state="disable")
 infoLabelS.grid(row=1,column=6,columnspan=2)
 secondsEnty = ttk.Spinbox(settingFrame, width=6, from_=0, to=60, state="disable")
@@ -393,6 +413,7 @@ secondsEnty.grid(row=2,column=6,columnspan=2)
 
 # ************************************************************************** #
 # Вкладка "История"
+
 # Настройка таблицы истории
 # Определяем столбцы
 columns = ("task", "time", "timer")
@@ -423,12 +444,18 @@ btnClearFileHistory.pack()
 # historyInfo = ttk.Label(frame2, justify=CENTER, text="Внимание!\nИстория на данный момент никуда\nне сохраняется и удаляется после\nзакрытия программы", background="#FFCDD2")
 # historyInfo.pack(expand=True)
 
-timerSelectDef(None)
-
-modeSelectDef(None)
-
+# считываение файла с конфигурацией последнего запуска
 getConfFile()
 
-root.protocol("WM_DELETE_WINDOW", closeTimer)
+# выбор файла для записи и чтения истории работы таймера
+timerSelectDef(None)
 
+# выбор режима работы таймера в соответствии с выбранным чекбоксом
+modeSelectDef(None)
+
+# настройка реакции на закрытие окна приложения
+root.protocol("WM_DELETE_WINDOW", closeTimer) 
+
+# главный цикл tkinter
 root.mainloop()
+
